@@ -1,36 +1,31 @@
 # app_glossary.py
 
-import streamlit as st
-import pandas as pd
-from collections import Counter
 import io
-
-# ========== NLP BACKEND ==========
-
-import spacy
-from spacy.util import is_package
+from collections import Counter
 from itertools import tee
 
+import pandas as pd
+import spacy
+import streamlit as st
+
+# ========= NLP BACKEND =========
+
 @st.cache_resource
-def load_spacy_model():
+def get_nlp():
     """
-    Load spaCy model, downloading it if needed.
-    Cached as a Streamlit resource so it only runs once per session.
+    Load the spaCy model.
+    Model should already be installed via requirements.txt:
+    en-core-web-sm @ <model URL>
     """
-    model_name = "en_core_web_sm"
     try:
-        if not is_package(model_name):
-            from spacy.cli import download
-            download(model_name)
-        nlp_model = spacy.load(model_name)
-        return nlp_model
+        return spacy.load("en_core_web_sm")
     except Exception as e:
-        st.error(f"Could not load spaCy model '{model_name}': {e}")
+        st.error(f"Could not load spaCy model 'en_core_web_sm': {e}")
         return None
 
-nlp = load_spacy_model()
+nlp = get_nlp()
 
-# ========== HELPER FUNCTIONS ==========
+# ========= HELPER FUNCTIONS =========
 
 def extract_noun_chunks(texts, min_len=1, max_len=6):
     """
@@ -103,7 +98,7 @@ def kwic(texts, phrase, window=60, max_examples=10):
     return examples
 
 
-# ========== STREAMLIT APP ==========
+# ========= STREAMLIT APP =========
 
 st.title("Corpus-Based Glossary Builder")
 
@@ -111,22 +106,22 @@ st.markdown(
     """
 This tool builds a **semi-automatic glossary** from domain texts (e.g. tickets, emails, reports).
 
-**Workflow:**
+**Basic workflow:**
 1. Upload a CSV with at least one text column.
 2. Extract noun-phrases, bigrams, and trigrams.
 3. Review and annotate:
-   - include/exclude,
+   - include / exclude,
    - add definitions,
    - add translations,
    - add notes.
-4. Export as CSV to use as a glossary/termbase.
+4. Export the selected entries as a CSV glossary.
 """
 )
 
 if nlp is None:
     st.stop()
 
-# --- Upload section ---
+# ---- Upload section ----
 uploaded_file = st.file_uploader(
     "Upload a CSV file (must contain a text column)",
     type=["csv"]
@@ -143,14 +138,14 @@ if uploaded_file is not None:
 
     cols = df.columns.tolist()
     text_col_name = st.selectbox(
-        "Select the column that contains the ticket text:",
+        "Select the column that contains the ticket/text data:",
         options=cols
     )
 
     if text_col_name:
         texts = df[text_col_name].dropna().astype(str).tolist()
 
-# --- Parameter controls ---
+# ---- Parameter controls ----
 st.sidebar.header("Extraction Settings")
 
 min_np_len = st.sidebar.slider("Min tokens in noun phrase", 1, 5, 1)
@@ -162,7 +157,7 @@ min_trigram_freq = st.sidebar.slider("Min frequency for trigrams", 1, 20, 3)
 st.sidebar.markdown("---")
 st.sidebar.write("Adjust these if you get too many / too few candidates.")
 
-# --- Extraction ---
+# ---- Extraction ----
 if texts is not None and st.button("Extract glossary candidates"):
     with st.spinner("Extracting candidates..."):
         noun_chunks = extract_noun_chunks(
@@ -213,8 +208,7 @@ if texts is not None and st.button("Extract glossary candidates"):
             st.session_state["texts"] = texts
             st.success(f"Found {len(cand_df)} candidates.")
 
-
-# --- Editor + KWIC + Export ---
+# ---- Editor + KWIC + Export ----
 if "cand_df" in st.session_state:
     st.subheader("Glossary candidates (edit and annotate)")
 
