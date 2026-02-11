@@ -5,8 +5,9 @@ from collections import Counter
 from itertools import tee
 
 import pandas as pd
-import spacy
 import streamlit as st
+import spacy
+from spacy.cli import download as spacy_download
 
 # ========= NLP BACKEND =========
 
@@ -14,14 +15,17 @@ import streamlit as st
 def get_nlp():
     """
     Load the spaCy model.
-    Model should already be installed via requirements.txt:
-    en-core-web-sm @ <model URL>
+    If 'en_core_web_sm' is not installed, download it, then load.
+    Cached so it only happens once per session on Streamlit Cloud.
     """
+    model_name = "en_core_web_sm"
     try:
-        return spacy.load("en_core_web_sm")
-    except Exception as e:
-        st.error(f"Could not load spaCy model 'en_core_web_sm': {e}")
-        return None
+        nlp_model = spacy.load(model_name)
+    except OSError:
+        # Model not installed in the environment: download then load
+        spacy_download(model_name)
+        nlp_model = spacy.load(model_name)
+    return nlp_model
 
 nlp = get_nlp()
 
@@ -106,7 +110,7 @@ st.markdown(
     """
 This tool builds a **semi-automatic glossary** from domain texts (e.g. tickets, emails, reports).
 
-**Basic workflow:**
+**Workflow:**
 1. Upload a CSV with at least one text column.
 2. Extract noun-phrases, bigrams, and trigrams.
 3. Review and annotate:
@@ -119,6 +123,7 @@ This tool builds a **semi-automatic glossary** from domain texts (e.g. tickets, 
 )
 
 if nlp is None:
+    st.error("spaCy model could not be loaded.")
     st.stop()
 
 # ---- Upload section ----
@@ -254,7 +259,6 @@ if "cand_df" in st.session_state:
             else:
                 st.write(f"Examples for **{selected_phrase}**:")
                 for ex in examples:
-                    # naive highlight
                     st.markdown(
                         "- " + ex.replace(
                             selected_phrase,
